@@ -2,9 +2,11 @@
 
 import pygame
 from settings import PLAYER_VEL
+from sound import sound_manager
 
 
 def collide(player, objects, dx):
+    """Check whether moving *dx* pixels would cause a collision."""
     player.move(dx, 0)
     player.update()
     collided_object = None
@@ -12,13 +14,13 @@ def collide(player, objects, dx):
         if pygame.sprite.collide_mask(player, obj):
             collided_object = obj
             break
-
     player.move(-dx, 0)
     player.update()
     return collided_object
 
 
 def handle_vertical_collision(player, objects, dy):
+    """Resolve vertical overlaps and return collided objects."""
     collided_objects = []
     for obj in objects:
         if pygame.sprite.collide_mask(player, obj):
@@ -26,24 +28,29 @@ def handle_vertical_collision(player, objects, dy):
                 if dy > 0:
                     player.rect.bottom = obj.rect.top
                     obj.bounce(player)
+                    sound_manager.play_sfx("trampoline")
                     collided_objects.append(obj)
             else:
                 if dy > 0:
                     player.rect.bottom = obj.rect.top
-                    player.landed()
+                    player.landed(obj)
                 elif dy < 0:
                     player.rect.top = obj.rect.bottom
                     player.hit_head()
-
                 collided_objects.append(obj)
-
     return collided_objects
 
 
 def handle_move(player, objects):
+    """Process one frame of player input + physics."""
     keys = pygame.key.get_pressed()
 
-    solid_objects = [obj for obj in objects if obj.name in (None, "block", "moving_platform") or (obj.name == "falling_platform" and getattr(obj, 'is_solid', False))]
+    solid_objects = [
+        obj for obj in objects
+        if obj.name in (None, "block", "moving_platform")
+        or (obj.name == "falling_platform"
+            and getattr(obj, "is_solid", False))
+    ]
     trampolines = [obj for obj in objects if obj.name == "trampoline"]
 
     player.x_vel = 0
@@ -55,7 +62,9 @@ def handle_move(player, objects):
     if (keys[pygame.K_RIGHT] or keys[pygame.K_d]) and not collide_right:
         player.move_right(PLAYER_VEL)
 
-    vertical_collide = handle_vertical_collision(player, solid_objects + trampolines, player.y_vel)
+    vertical_collide = handle_vertical_collision(
+        player, solid_objects + trampolines, player.y_vel
+    )
 
     for obj in vertical_collide:
         if obj.name == "moving_platform":
@@ -63,14 +72,24 @@ def handle_move(player, objects):
         elif obj.name == "falling_platform":
             obj.trigger()
 
+    # ── wall-contact detection (for wall-slide / wall-jump) ──
+    wall_left = collide(player, solid_objects, -2)
+    wall_right = collide(player, solid_objects, 2)
+    player.touching_wall_left = wall_left is not None and player.fall_count > 5
+    player.touching_wall_right = wall_right is not None and player.fall_count > 5
+
+    # ── hazard collisions (respects invincibility) ──
+    hazard_names = ("fire", "spike", "saw", "arrow",
+                    "rock_head", "spike_head", "spiked_ball")
     for obj in objects:
-        if obj.name in ("fire", "spike", "saw", "arrow", "rock_head", "spike_head", "spiked_ball"):
+        if obj.name in hazard_names:
             if pygame.sprite.collide_mask(player, obj):
                 player.make_hit()
 
+    # ── fan wind ──
     for obj in objects:
         if obj.name == "fan":
-            if hasattr(obj, 'wind_rect') and obj.wind_rect.colliderect(player.rect):
+            if hasattr(obj, "wind_rect") and obj.wind_rect.colliderect(player.rect):
                 player.y_vel -= 0.8
                 if player.y_vel < -6:
                     player.y_vel = -6

@@ -1,0 +1,20 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+env/
+venv/
+
+# Save Data
+save.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Pygbag
+build/
+.pygbag/

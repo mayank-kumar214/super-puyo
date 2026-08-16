@@ -1,170 +1,241 @@
-"""Screen rendering: normal frame draw and the death screen overlay."""
+"""Screen rendering: normal frame, death/victory overlays, and HUD.
+
+NOTE: No function in this module calls ``pygame.display.update()``
+      — the main loop does that once after transitions are drawn.
+"""
 
 import pygame
 from settings import WIDTH, HEIGHT
 
-def draw_hud(window, current_level, total_levels, fruits_collected=0, total_fruits=0, score=0):
-    """Draw level indicator HUD and fruit score card."""
+
+# ── HUD ───────────────────────────────────────────────────────────
+
+def draw_hud(window, current_level, total_levels,
+             fruits_collected=0, total_fruits=0, score=0,
+             health=3, max_health=3):
+    """Draw level card, score card, and hearts."""
+
     # Level card
     level_rect = pygame.Rect(20, 20, 180, 48)
-    level_surface = pygame.Surface((level_rect.width, level_rect.height), pygame.SRCALPHA)
-    level_surface.fill((0, 0, 0, 160))
-    window.blit(level_surface, level_rect)
-    pygame.draw.rect(window, (70, 130, 240), level_rect, 2, border_radius=8)
+    _draw_card(window, level_rect, (70, 130, 240))
+    _center_text(window, level_rect,
+                 f"Level {current_level} / {total_levels}",
+                 22, (255, 255, 255))
 
-    font = pygame.font.SysFont("arial", 22, bold=True)
-    text = font.render(f"Level {current_level} / {total_levels}", True, (255, 255, 255))
-    text_rect = text.get_rect(center=level_rect.center)
-    window.blit(text, text_rect)
+    # Score & fruit card
+    score_rect = pygame.Rect(WIDTH - 260, 20, 240, 48)
+    _draw_card(window, score_rect, (255, 200, 50))
+    _center_text(window, score_rect,
+                 f"Fruits: {fruits_collected}/{total_fruits}  Score: {score}",
+                 18, (255, 230, 100))
 
-    # Score & Fruit card
-    score_rect = pygame.Rect(WIDTH - 240, 20, 220, 48)
-    score_surface = pygame.Surface((score_rect.width, score_rect.height), pygame.SRCALPHA)
-    score_surface.fill((0, 0, 0, 160))
-    window.blit(score_surface, score_rect)
-    pygame.draw.rect(window, (255, 200, 50), score_rect, 2, border_radius=8)
+    # Hearts
+    heart_size = 28
+    heart_gap = 6
+    hx = 20
+    hy = 78
+    for i in range(max_health):
+        rect = pygame.Rect(hx + i * (heart_size + heart_gap), hy,
+                           heart_size, heart_size)
+        if i < health:
+            # Filled heart
+            pygame.draw.polygon(window, (230, 40, 50), _heart_points(rect))
+            pygame.draw.polygon(window, (255, 80, 90), _heart_points(rect), 2)
+        else:
+            # Empty heart
+            pygame.draw.polygon(window, (80, 80, 80), _heart_points(rect))
+            pygame.draw.polygon(window, (120, 120, 120), _heart_points(rect), 2)
 
-    score_font = pygame.font.SysFont("arial", 20, bold=True)
-    score_text = score_font.render(f"Fruits: {fruits_collected}/{total_fruits}  Score: {score}", True, (255, 230, 100))
-    score_text_rect = score_text.get_rect(center=score_rect.center)
-    window.blit(score_text, score_text_rect)
 
-def draw(window, background, bg_image, player, objects, offset_x, current_level=1, total_levels=5, fruits_collected=0, total_fruits=0, score=0):
+def _draw_card(window, rect, border_color):
+    surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 160))
+    window.blit(surf, rect)
+    pygame.draw.rect(window, border_color, rect, 2, border_radius=8)
+
+
+def _center_text(window, rect, text, size, color):
+    font = pygame.font.SysFont("arial", size, bold=True)
+    rendered = font.render(text, True, color)
+    window.blit(rendered, rendered.get_rect(center=rect.center))
+
+
+def _heart_points(rect):
+    """Return polygon points for a heart shape inside *rect*."""
+    cx, cy = rect.centerx, rect.centery
+    w, h = rect.width * 0.5, rect.height * 0.5
+    return [
+        (cx, cy + h * 0.85),
+        (cx - w, cy - h * 0.1),
+        (cx - w * 0.7, cy - h * 0.75),
+        (cx - w * 0.25, cy - h * 0.85),
+        (cx, cy - h * 0.35),
+        (cx + w * 0.25, cy - h * 0.85),
+        (cx + w * 0.7, cy - h * 0.75),
+        (cx + w, cy - h * 0.1),
+    ]
+
+
+# ── main game draw ───────────────────────────────────────────────
+
+def draw(window, background, bg_image, player, objects, offset_x,
+         current_level=1, total_levels=5,
+         fruits_collected=0, total_fruits=0, score=0,
+         health=3, max_health=3, particle_system=None):
+    """Draw one normal gameplay frame (no display.update)."""
+
+    ox = int(offset_x)
+
     for tile in background:
-        window.blit(bg_image, tile) 
+        window.blit(bg_image, tile)
 
     for obj in objects:
-        if getattr(obj, "collected", False):
+        if getattr(obj, "collect_anim_done", False):
             continue
-        obj.draw(window, offset_x)
+        obj.draw(window, ox)
 
-    player.draw(window, offset_x)
-    draw_hud(window, current_level, total_levels, fruits_collected, total_fruits, score)
+    player.draw(window, ox)
 
-    pygame.display.update()
+    if particle_system is not None:
+        particle_system.draw(window, ox)
 
-def draw_death_screen(window, background, bg_image, objects, offset_x, current_level=1, total_levels=5, fruits_collected=0, total_fruits=0, score=0):
-    """Draw the game world with a 'YOU DIED' overlay. Returns the restart button rect."""
+    draw_hud(window, current_level, total_levels,
+             fruits_collected, total_fruits, score,
+             health, max_health)
+
+
+# ── death screen ──────────────────────────────────────────────────
+
+def draw_death_screen(window, background, bg_image, objects, offset_x,
+                      current_level=1, total_levels=5,
+                      fruits_collected=0, total_fruits=0, score=0):
+    """Draw world + 'YOU DIED' overlay.  Returns the restart-button rect."""
+
+    ox = int(offset_x)
+
     for tile in background:
         window.blit(bg_image, tile)
     for obj in objects:
-        if getattr(obj, "collected", False):
+        if getattr(obj, "collect_anim_done", False):
             continue
-        obj.draw(window, offset_x)
+        obj.draw(window, ox)
 
-    draw_hud(window, current_level, total_levels, fruits_collected, total_fruits, score)
+    draw_hud(window, current_level, total_levels,
+             fruits_collected, total_fruits, score, 0, 3)
 
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 140))
     window.blit(overlay, (0, 0))
 
-    # "YOU DIED" text
-    death_font = pygame.font.SysFont("arial", 80, bold=True)
-    death_text = death_font.render("YOU DIED", True, (230, 40, 40))
-    death_text_rect = death_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 60))
-    window.blit(death_text, death_text_rect)
+    # "YOU DIED"
+    font = pygame.font.SysFont("arial", 80, bold=True)
+    text = font.render("YOU DIED", True, (230, 40, 40))
+    window.blit(text, text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 60)))
 
     # Restart button
-    button_font = pygame.font.SysFont("arial", 34, bold=True)
-    button_text = button_font.render("Restart Level", True, (255, 255, 255))
-    button_width, button_height = 240, 60
-    button_rect = pygame.Rect(
-        WIDTH // 2 - button_width // 2,
-        HEIGHT // 2 + 40,
-        button_width,
-        button_height
-    )
+    return _overlay_button(window, "Restart Level",
+                           WIDTH // 2, HEIGHT // 2 + 40,
+                           240, 60, (140, 20, 20), (190, 40, 40))
 
-    mouse_pos = pygame.mouse.get_pos()
-    if button_rect.collidepoint(mouse_pos):
-        pygame.draw.rect(window, (190, 40, 40), button_rect, border_radius=10)
-    else:
-        pygame.draw.rect(window, (140, 20, 20), button_rect, border_radius=10)
 
-    pygame.draw.rect(window, (255, 255, 255), button_rect, 2, border_radius=10)
-    button_text_rect = button_text.get_rect(center=button_rect.center)
-    window.blit(button_text, button_text_rect)
+# ── level-clear screen ───────────────────────────────────────────
 
-    pygame.display.update()
-    return button_rect
+def draw_level_complete_screen(window, background, bg_image,
+                               objects, offset_x,
+                               cleared_level, total_levels,
+                               fruits_collected=0, total_fruits=0,
+                               score=0, particle_system=None):
+    ox = int(offset_x)
 
-def draw_level_complete_screen(window, background, bg_image, objects, offset_x, cleared_level, total_levels, fruits_collected=0, total_fruits=0, score=0):
-    """Draw level complete overlay when player reaches the end goal flag."""
     for tile in background:
         window.blit(bg_image, tile)
     for obj in objects:
-        if getattr(obj, "collected", False):
+        if getattr(obj, "collect_anim_done", False):
             continue
-        obj.draw(window, offset_x)
+        obj.draw(window, ox)
 
-    draw_hud(window, cleared_level, total_levels, fruits_collected, total_fruits, score)
+    if particle_system is not None:
+        particle_system.draw(window, ox)
+
+    draw_hud(window, cleared_level, total_levels,
+             fruits_collected, total_fruits, score)
 
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 130))
     window.blit(overlay, (0, 0))
 
-    font_title = pygame.font.SysFont("arial", 56, bold=True)
-    title_text = font_title.render(f"LEVEL {cleared_level} CLEARED!", True, (255, 215, 0))
-    title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 40))
-    window.blit(title_text, title_rect)
+    font_t = pygame.font.SysFont("arial", 56, bold=True)
+    title = font_t.render(f"LEVEL {cleared_level} CLEARED!", True,
+                          (255, 215, 0))
+    window.blit(title, title.get_rect(center=(WIDTH // 2,
+                                              HEIGHT // 2 - 40)))
 
-    font_sub = pygame.font.SysFont("arial", 28)
-    sub_text = font_sub.render("Loading Next Level...", True, (255, 255, 255))
-    sub_rect = sub_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 30))
-    window.blit(sub_text, sub_rect)
+    font_s = pygame.font.SysFont("arial", 28)
+    sub = font_s.render("Loading Next Level...", True, (255, 255, 255))
+    window.blit(sub, sub.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 30)))
 
-    pygame.display.update()
 
-def draw_victory_screen(window, background, bg_image, objects, offset_x, total_levels, fruits_collected=0, total_fruits=0, score=0):
-    """Draw game victory overlay when all levels are completed."""
+# ── victory screen ───────────────────────────────────────────────
+
+def draw_victory_screen(window, background, bg_image,
+                        objects, offset_x,
+                        total_levels,
+                        fruits_collected=0, total_fruits=0,
+                        score=0, particle_system=None):
+    ox = int(offset_x)
+
     for tile in background:
         window.blit(bg_image, tile)
     for obj in objects:
-        if getattr(obj, "collected", False):
+        if getattr(obj, "collect_anim_done", False):
             continue
-        obj.draw(window, offset_x)
+        obj.draw(window, ox)
 
-    draw_hud(window, total_levels, total_levels, fruits_collected, total_fruits, score)
+    if particle_system is not None:
+        particle_system.draw(window, ox)
+
+    draw_hud(window, total_levels, total_levels,
+             fruits_collected, total_fruits, score)
 
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 160))
     window.blit(overlay, (0, 0))
 
-    font_title = pygame.font.SysFont("arial", 64, bold=True)
-    title_text = font_title.render("VICTORY!", True, (255, 215, 0))
-    title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
-    window.blit(title_text, title_rect)
+    font_t = pygame.font.SysFont("arial", 64, bold=True)
+    title = font_t.render("VICTORY!", True, (255, 215, 0))
+    window.blit(title, title.get_rect(center=(WIDTH // 2,
+                                              HEIGHT // 2 - 100)))
 
-    font_msg = pygame.font.SysFont("arial", 30, bold=True)
-    msg_text = font_msg.render("Congratulations! All Levels Completed!", True, (255, 255, 255))
-    msg_rect = msg_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 35))
-    window.blit(msg_text, msg_rect)
+    font_m = pygame.font.SysFont("arial", 30, bold=True)
+    msg = font_m.render("Congratulations! All Levels Completed!",
+                        True, (255, 255, 255))
+    window.blit(msg, msg.get_rect(center=(WIDTH // 2,
+                                          HEIGHT // 2 - 35)))
 
-    font_stats = pygame.font.SysFont("arial", 24)
-    stats_text = font_stats.render(f"Fruits Collected: {fruits_collected}/{total_fruits}  |  Final Score: {score}", True, (255, 230, 100))
-    stats_rect = stats_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 10))
-    window.blit(stats_text, stats_rect)
+    font_s = pygame.font.SysFont("arial", 24)
+    stats = font_s.render(
+        f"Fruits Collected: {fruits_collected}/{total_fruits}"
+        f"  |  Final Score: {score}", True, (255, 230, 100))
+    window.blit(stats, stats.get_rect(center=(WIDTH // 2,
+                                              HEIGHT // 2 + 10)))
 
-    # Play Again button
-    button_font = pygame.font.SysFont("arial", 32, bold=True)
-    button_text = button_font.render("Play Again", True, (255, 255, 255))
-    button_width, button_height = 220, 60
-    button_rect = pygame.Rect(
-        WIDTH // 2 - button_width // 2,
-        HEIGHT // 2 + 75,
-        button_width,
-        button_height
-    )
+    return _overlay_button(window, "Play Again",
+                           WIDTH // 2, HEIGHT // 2 + 75,
+                           220, 60, (25, 140, 50), (40, 180, 70))
 
-    mouse_pos = pygame.mouse.get_pos()
-    if button_rect.collidepoint(mouse_pos):
-        pygame.draw.rect(window, (40, 180, 70), button_rect, border_radius=12)
-    else:
-        pygame.draw.rect(window, (25, 140, 50), button_rect, border_radius=12)
 
-    pygame.draw.rect(window, (255, 255, 255), button_rect, 2, border_radius=12)
-    button_text_rect = button_text.get_rect(center=button_rect.center)
-    window.blit(button_text, button_text_rect)
+# ── internal helpers ──────────────────────────────────────────────
 
-    pygame.display.update()
-    return button_rect
+def _overlay_button(window, label, cx, cy, w, h,
+                    color_normal, color_hover):
+    """Draw a centred button and return its rect."""
+    font = pygame.font.SysFont("arial", 32, bold=True)
+    text = font.render(label, True, (255, 255, 255))
+    rect = pygame.Rect(cx - w // 2, cy, w, h)
+
+    mp = pygame.mouse.get_pos()
+    col = color_hover if rect.collidepoint(mp) else color_normal
+    pygame.draw.rect(window, col, rect, border_radius=12)
+    pygame.draw.rect(window, (255, 255, 255), rect, 2, border_radius=12)
+    window.blit(text, text.get_rect(center=rect.center))
+    return rect
