@@ -452,7 +452,7 @@ async def main(window):                              # noqa: C901 — game loop
 
 
 # ── pygame init (top-level so pygbag can set up display) ──────
-pygame.mixer.pre_init(44100, -16, 2, 2048)
+pygame.mixer.pre_init(22050, -16, 2, 4096)
 pygame.init()
 pygame.display.set_caption("Super Puyo")
 window = pygame.display.set_mode((WIDTH, HEIGHT))
