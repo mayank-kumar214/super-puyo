@@ -62,16 +62,24 @@ class SoundManager:
     def play_music(self):
         if not self._initialized or self._music_playing:
             return
-        if self._music_sound is None:
-            self._music_sound = self._generate_melody()
-        self._music_sound.set_volume(self._music_volume)
-        self._music_channel = pygame.mixer.Channel(7)
-        self._music_channel.play(self._music_sound, loops=-1)
+            
+        # Load the external audio file you just saved.
+        # NOTE: use .ogg, not .mp3 — pygbag's WASM build of SDL_mixer has
+        # unreliable/missing MP3 decoding support, so mp3 files can fail to
+        # produce audible output even when .load()/.play() raise no error.
+        pygame.mixer.music.load("bg_music.ogg")
+        
+        # Apply your manager's existing music volume variable
+        pygame.mixer.music.set_volume(self._music_volume)
+        
+        # Play the music (-1 tells Pygame to loop it indefinitely)
+        pygame.mixer.music.play(-1)
+        
         self._music_playing = True
 
     def stop_music(self):
-        if self._music_playing and self._music_channel is not None:
-            self._music_channel.stop()
+        if self._music_playing:
+            pygame.mixer.music.stop()
         self._music_playing = False
 
     def set_sfx_volume(self, vol: float):
@@ -79,8 +87,9 @@ class SoundManager:
 
     def set_music_volume(self, vol: float):
         self._music_volume = max(0.0, min(1.0, vol))
-        if self._music_sound is not None:
-            self._music_sound.set_volume(self._music_volume)
+        # Update the streaming music volume dynamically
+        if self._initialized:
+            pygame.mixer.music.set_volume(self._music_volume)
 
     # ── waveform helpers ──────────────────────────────────────────
 
@@ -219,15 +228,17 @@ class SoundManager:
         s["pause"]         = self._chirp(600,  400,   80, "sine",     0.15)
         s["unpause"]       = self._chirp(400,  600,   80, "sine",     0.15)
 
+
     # ── background melody ─────────────────────────────────────────
 
     def _generate_melody(self) -> pygame.mixer.Sound:
-        """Short C-major pentatonic loop, triangle wave."""
+        """Cute, soothing pixel-art style melody."""
+        # A sweet, uplifting major scale melody that feels bouncy but gentle
         notes = [
-            (523, 200), (587, 200), (659, 200), (784, 400),
-            (659, 200), (587, 200), (523, 400),
-            (392, 200), (440, 200), (523, 200), (587, 400),
-            (523, 200), (440, 200), (392, 400),
+            (523, 300), (659, 300), (784, 600),  # C5, E5, G5
+            (880, 300), (784, 300), (659, 600),  # A5, G5, E5
+            (523, 300), (659, 300), (784, 400), (659, 200), 
+            (587, 600), (523, 800)               # D5, C5 (held longer to resolve)
         ]
         buf = array.array("h")
         total_n = 0
@@ -237,11 +248,16 @@ class SoundManager:
             for i in range(n):
                 t = i / SAMPLE_RATE
                 p = i / n
-                attack = min(1.0, p * 15)
-                release = 1.0 if p < 0.85 else (1.0 - (p - 0.85) / 0.15)
+                
+                # Softer attack and a long, gentle fade-out for a cozy feel
+                attack = min(1.0, p * 10)
+                release = 1.0 if p < 0.5 else (1.0 - (p - 0.5) / 0.5)
                 env = attack * release
-                val = int(0.12 * env * 32767
+                
+                # The 'triangle' wave gives that classic, soft 8-bit flute sound
+                val = int(0.10 * env * 32767
                           * self._wave("triangle", freq, t))
+                
                 val = max(-32768, min(32767, val))
                 buf.append(val); buf.append(val)
         return self._buf_to_sound(buf, total_n)
