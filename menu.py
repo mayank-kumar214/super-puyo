@@ -213,7 +213,14 @@ class Transition:
             self.alpha = min(255, self.alpha + self.speed)
             if self.alpha >= 255:
                 if self._callback:
-                    self._callback()
+                    try:
+                        self._callback()
+                    except Exception:
+                        import traceback
+                        print("=" * 60, flush=True)
+                        print("[Transition] callback raised an exception:", flush=True)
+                        traceback.print_exc()
+                        print("=" * 60, flush=True)
                     self._callback = None
                 self._phase = "fade_in"
         elif self._phase == "fade_in":
