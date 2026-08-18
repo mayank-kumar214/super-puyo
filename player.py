@@ -98,7 +98,6 @@ class Player(pygame.sprite.Sprite):
         self.jump_buffer = 0
         sound_manager.play_sfx("wall_jump")
 
-
     # ── movement ──────────────────────────────────────────────────
 
     def move(self, dx, dy):
