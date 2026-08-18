@@ -5,6 +5,7 @@ NOTE: No function in this module calls ``pygame.display.update()``
 """
 
 import pygame
+import math
 from settings import WIDTH, HEIGHT
 
 
@@ -132,10 +133,13 @@ def draw_death_screen(window, background, bg_image, objects, offset_x,
     text = font.render("YOU DIED", True, (230, 40, 40))
     window.blit(text, text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 60)))
 
-    # Restart button
-    return _overlay_button(window, "Restart Level",
-                           WIDTH // 2, HEIGHT // 2 + 40,
-                           240, 60, (140, 20, 20), (190, 40, 40))
+    # "Press ENTER to restart" prompt (blinking)
+    hint_font = pygame.font.SysFont("arial", 32, bold=True)
+    alpha = int(128 + 127 * math.sin(pygame.time.get_ticks() / 300))
+    hint_surf = hint_font.render("Press ENTER to Restart", True, (255, 255, 255))
+    hint_surf.set_alpha(alpha)
+    window.blit(hint_surf,
+                hint_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 40)))
 
 
 # ── level-clear screen ───────────────────────────────────────────

@@ -276,11 +276,10 @@ async def main(window):                              # noqa: C901 — game loop
 
             # ── DEAD ──
             elif state == DEAD:
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if restart_button and restart_button.collidepoint(event.pos):
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
                         transition.start(_restart_level)
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
+                    elif event.key == pygame.K_ESCAPE:
                         transition.start(_go_to_menu)
 
             # ── VICTORY ──
@@ -423,7 +422,7 @@ async def main(window):                              # noqa: C901 — game loop
 
         # ·· DEAD ··
         elif state == DEAD:
-            restart_button = draw_death_screen(
+            draw_death_screen(
                 window, background, bg_image, objects, offset_x,
                 current_level_idx + 1, total_levels,
                 total_fruits_collected, cumulative_total_fruits, score)
