@@ -33,6 +33,7 @@ class Player(pygame.sprite.Sprite):
         self.animation_count = 0
         self.fall_count = 0
         self.jump_count = 0
+        self.actual_jump_presses = 0  # tracks real player-initiated jumps
         self.hit = False
         self.hit_count = 0
 
@@ -63,7 +64,7 @@ class Player(pygame.sprite.Sprite):
             self.wall_jump()
             return
         if self.jump_count < 2 and (self.jump_count > 0 or self.coyote_timer > 0
-                                     or self.fall_count < self.COYOTE_FRAMES):
+                                     or self.fall_count <= self.COYOTE_FRAMES):
             self.jump()
         else:
             # Buffer the press so it fires on next landing
@@ -73,6 +74,7 @@ class Player(pygame.sprite.Sprite):
         self.y_vel = -self.GRAVITY * 8
         self.animation_count = 0
         self.jump_count += 1
+        self.actual_jump_presses += 1
         if self.jump_count == 1:
             self.fall_count = 0
             sound_manager.play_sfx("jump")
@@ -95,6 +97,7 @@ class Player(pygame.sprite.Sprite):
         self.coyote_timer = 0
         self.jump_buffer = 0
         sound_manager.play_sfx("wall_jump")
+
 
     # ── movement ──────────────────────────────────────────────────
 
@@ -171,7 +174,7 @@ class Player(pygame.sprite.Sprite):
             self.y_vel = min(self.y_vel, 2)   # slow fall
 
         # Coyote grace: after coyote runs out, consume ground jump
-        if (self.fall_count > self.COYOTE_FRAMES
+        if (self.fall_count >= self.COYOTE_FRAMES
                 and self.coyote_timer <= 0
                 and self.jump_count == 0
                 and self.y_vel > 0):
@@ -194,6 +197,7 @@ class Player(pygame.sprite.Sprite):
         self.ground_obj = obj
         self.y_vel = 0
         self.jump_count = 0
+        self.actual_jump_presses = 0
         self.coyote_timer = self.COYOTE_FRAMES
         self.just_landed = True
         if was_falling:
@@ -220,9 +224,9 @@ class Player(pygame.sprite.Sprite):
             else:
                 self.direction = "left"
         elif self.y_vel < 0:
-            if self.jump_count == 1:
+            if self.actual_jump_presses == 1:
                 sprite_sheet = "jump"
-            elif self.jump_count == 2:
+            elif self.actual_jump_presses >= 2:
                 sprite_sheet = "double_jump"
         elif self.y_vel > self.GRAVITY * 2:
             sprite_sheet = "fall"
