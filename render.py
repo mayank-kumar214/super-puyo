@@ -136,7 +136,7 @@ def draw_death_screen(window, background, bg_image, objects, offset_x,
     # "Press ENTER to restart" prompt (blinking)
     hint_font = pygame.font.SysFont("arial", 32, bold=True)
     alpha = int(128 + 127 * math.sin(pygame.time.get_ticks() / 300))
-    hint_surf = hint_font.render("Press ENTER to Restart", True, (255, 255, 255))
+    hint_surf = hint_font.render("Press ENTER or Tap to Restart", True, (255, 255, 255))
     hint_surf.set_alpha(alpha)
     window.blit(hint_surf,
                 hint_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 40)))

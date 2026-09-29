@@ -77,6 +77,7 @@ async def main(window):                              # noqa: C901 — game loop
     from levels import load_level, level_count
     from menu import MainMenu, PauseMenu, Transition
     from particles import ParticleSystem
+    from touch_controls import TouchControls
 
     sound_manager.init()
 
@@ -87,6 +88,7 @@ async def main(window):                              # noqa: C901 — game loop
     pause_menu     = PauseMenu()
     transition     = Transition(speed=10)
     particle_system = ParticleSystem()
+    touch          = TouchControls()
 
     # Level bookkeeping
     current_level_idx    = 0
@@ -235,6 +237,9 @@ async def main(window):                              # noqa: C901 — game loop
                 run = False
                 break
 
+            # ── Process touch events (all states) ──
+            touch_action = touch.handle_event(event)
+
             # ── MENU ──
             if state == MENU:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -256,7 +261,15 @@ async def main(window):                              # noqa: C901 — game loop
                         player.request_jump()
                     elif event.key == pygame.K_ESCAPE:
                         state = PAUSED
+                        touch.release_all()
                         sound_manager.play_sfx("pause")
+                # Touch: jump / pause
+                if touch_action == "jump":
+                    player.request_jump()
+                elif touch_action == "pause":
+                    state = PAUSED
+                    touch.release_all()
+                    sound_manager.play_sfx("pause")
 
             # ── PAUSED ──
             elif state == PAUSED:
@@ -273,6 +286,10 @@ async def main(window):                              # noqa: C901 — game loop
                         transition.start(_restart_level)
                     elif result == "save_quit":
                         _save_and_quit()
+                # Touch pause button → resume
+                if touch_action == "pause":
+                    state = PLAYING
+                    sound_manager.play_sfx("unpause")
 
             # ── DEAD ──
             elif state == DEAD:
@@ -281,6 +298,9 @@ async def main(window):                              # noqa: C901 — game loop
                         transition.start(_restart_level)
                     elif event.key == pygame.K_ESCAPE:
                         transition.start(_go_to_menu)
+                # Touch: tap jump button (or any touch) to restart
+                if touch_action == "jump":
+                    transition.start(_restart_level)
 
             # ── VICTORY ──
             elif state == VICTORY:
@@ -305,12 +325,12 @@ async def main(window):                              # noqa: C901 — game loop
 
         # ·· PLAYING ··
         elif state == PLAYING:
-            player.loop(FPS)
+            player.loop(FPS, touch.virtual_keys)
             for obj in objects:
                 if hasattr(obj, "loop") and callable(obj.loop):
                     obj.loop()
 
-            handle_move(player, objects)
+            handle_move(player, objects, touch.virtual_keys)
 
             # Dust particles
             if player.just_landed:
@@ -441,6 +461,10 @@ async def main(window):                              # noqa: C901 — game loop
                 total_levels,
                 total_fruits_collected, cumulative_total_fruits, score,
                 particle_system)
+
+        # Draw touch overlay (above game, below transition)
+        if state in (PLAYING, DEAD):
+            touch.draw(window)
 
         # Draw transition overlay last, then flip
         transition.draw(window)

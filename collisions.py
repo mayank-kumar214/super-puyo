@@ -41,9 +41,10 @@ def handle_vertical_collision(player, objects, dy):
     return collided_objects
 
 
-def handle_move(player, objects):
+def handle_move(player, objects, virtual_keys=None):
     """Process one frame of player input + physics."""
     keys = pygame.key.get_pressed()
+    vk = virtual_keys or {}
 
     solid_objects = [
         obj for obj in objects
@@ -57,9 +58,11 @@ def handle_move(player, objects):
     collide_left = collide(player, solid_objects, -PLAYER_VEL * 2)
     collide_right = collide(player, solid_objects, PLAYER_VEL * 2)
 
-    if (keys[pygame.K_LEFT] or keys[pygame.K_a]) and not collide_left:
+    if (keys[pygame.K_LEFT] or keys[pygame.K_a]
+            or vk.get(pygame.K_LEFT)) and not collide_left:
         player.move_left(PLAYER_VEL)
-    if (keys[pygame.K_RIGHT] or keys[pygame.K_d]) and not collide_right:
+    if (keys[pygame.K_RIGHT] or keys[pygame.K_d]
+            or vk.get(pygame.K_RIGHT)) and not collide_right:
         player.move_right(PLAYER_VEL)
 
     vertical_collide = handle_vertical_collision(
