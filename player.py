@@ -133,11 +133,12 @@ class Player(pygame.sprite.Sprite):
 
     # ── per-frame update ──────────────────────────────────────────
 
-    def loop(self, fps):
+    def loop(self, fps, virtual_keys=None):
         # Gravity
         grav = min(1, (self.fall_count / fps) * self.GRAVITY)
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+        vk = virtual_keys or {}
+        if keys[pygame.K_DOWN] or keys[pygame.K_s] or vk.get(pygame.K_DOWN):
             grav *= 2.5
         self.y_vel += grav
         self.move(self.x_vel, self.y_vel)
